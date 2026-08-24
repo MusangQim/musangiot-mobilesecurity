@@ -1,2 +1,2 @@
-# QIM - Mobile Security
+# QIM - Mobile Security by musangqim
 > A device for scanning and checking malicious app and rate the security of phone.
