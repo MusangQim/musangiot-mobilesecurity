@@ -20,35 +20,39 @@ def get_adb_path():
 
     return adb_path
 
-
+# note: using tuple to standardize into (status, data)
 def check_adb_connection():
     adb_path = get_adb_path()
     if not adb_path or not os.path.exists(adb_path):
-        return ("Error: 'platform-tools' folder not found!\n"
+        return ("ERROR", "'platform-tools' folder not found!\n"
                 "Please download SDK PlatformTools and put in the repo folder")
     try:
         result = subprocess.run([adb_path, "devices"],
                                 capture_output=True, text=True)
-    except subprocess.CalledProcessError:
-        return "Error: Failed to execute ADB Command!"
+    except FileNotFoundError:
+        return ("ERROR", "ADB binary corrupt or not executable")
+    except Exception as e:
+        return ("ERROR", f"Unexpected failure running ADB: {e}")
     lines = result.stdout.strip().splitlines()
     device_lines = [line.strip() for line in lines[1:]
                     if line.strip() and not line.startswith("*")]
+# --- connection phone ---
     if len(device_lines) == 0:
-        return "No Phone Connected!!"
-    if len(device_lines) == 1:
-        try:
-            device_id, status = device_lines[0].split()
-            if status == "unauthorized":
-                return "Phone Unauthorize!!"
-            if status == "device":
-                return device_id, "OK"
-            return f"Unknown Device Status: {status}"
-        except ValueError:
-            return "Invalid ADB Output Format!!"
-
-    return "--Many Device Connected, Specify One Device Please--"
+        return ("ERROR", "No phone connected!")
+    if len(device_lines) > 1:
+        return ("ERROR", "Many device connected, specify one")
+    try:
+        device_id, status = device_lines[0].split()
+    except ValueError:
+        return ("ERROR", "Invalid ADB output format!")
+# --- authorization and status ---
+    if status == "unauthorized":
+        return ("ERROR", "Phone unauthorize - check phone screen for allow prompt")
+    if status != "device":
+        return ("ERROR", f"Unknown device status: {status}")
+    return ("OK", device_id)
 
 
 if __name__ == "__main__":
-    print(check_adb_connection())
+    status, data = check_adb_connection()
+    print(f"[{status}] {data}")
