@@ -87,6 +87,25 @@ def get_device_info(device_id):
     return ("OK", device_info)
 
 
+def check_usb_debugging(device_id):
+    adb_path = get_adb_path()
+    if not adb_path or not os.path.exists(adb_path):
+        return ("ERROR", "'platform-tools' folder not found!\n"
+                "Please download SDK PlatformTools and put in the repo folder")
+    command_usbdebug = [adb_path, "-s", device_id, "shell", "settings", "get", "global", "adb_enabled"]
+    try:
+        result_usbdebug = subprocess.run(command_usbdebug, capture_output=True, text=True)
+    except FileNotFoundError:
+        return ("ERROR", "NO Data")
+    output_usbdebug = result_usbdebug.stdout.strip()
+    if output_usbdebug == "1":
+        return ("OK", True)
+    elif output_usbdebug == "0":
+        return ("OK", False)
+    else:
+        return ("ERROR", "Unexpected output")
+
+
 if __name__ == "__main__":
     status, data = check_adb_connection()
     print(f"[{status}] {data}")
