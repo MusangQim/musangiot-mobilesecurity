@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+from datetime import datetime
 
 
 # note: using adb.exe by auto locating the file after put folder in the repo
@@ -92,9 +93,11 @@ def check_usb_debugging(device_id):
     if not adb_path or not os.path.exists(adb_path):
         return ("ERROR", "'platform-tools' folder not found!\n"
                 "Please download SDK PlatformTools and put in the repo folder")
-    command_usbdebug = [adb_path, "-s", device_id, "shell", "settings", "get", "global", "adb_enabled"]
+    command_usbdebug = [adb_path, "-s", device_id, "shell", "settings", "get",
+                        "global", "adb_enabled"]
     try:
-        result_usbdebug = subprocess.run(command_usbdebug, capture_output=True, text=True)
+        result_usbdebug = subprocess.run(command_usbdebug,
+                                         capture_output=True, text=True)
     except FileNotFoundError:
         return ("ERROR", "NO Data")
     output_usbdebug = result_usbdebug.stdout.strip()
@@ -104,6 +107,25 @@ def check_usb_debugging(device_id):
         return ("OK", False)
     else:
         return ("ERROR", "Unexpected output")
+
+
+def check_security_patch(device_info):
+    patch_date_raw = device_info.get("security_patch")
+    if patch_date_raw is None:
+        return ("ERROR", "Security patch info not available")
+    try:
+        patch_date = datetime.fromisoformat(patch_date_raw)
+    except ValueError:
+        return ("ERROR", "Invalid patch date format")
+    today = datetime.now()
+    days_old = (today - patch_date).days
+    if days_old <= 90:
+        risk = "LOW"
+    elif days_old <= 180:
+        risk = "MEDIUM"
+    else:
+        risk = "HIGH"
+    return ("OK", {"days_old": days_old, "risk": risk})
 
 
 if __name__ == "__main__":
