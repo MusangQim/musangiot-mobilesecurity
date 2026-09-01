@@ -1,4 +1,5 @@
 import os
+import sys
 import platform
 import subprocess
 from datetime import datetime
@@ -57,6 +58,7 @@ def check_adb_connection():
     return ("OK", device_id)
 
 
+# note: getting device info for model, verse, security, manufacturer
 def get_device_info(device_id):
     adb_path = get_adb_path()
     if not adb_path or not os.path.exists(adb_path):
@@ -88,6 +90,7 @@ def get_device_info(device_id):
     return ("OK", device_info)
 
 
+# note: usb debug checking
 def check_usb_debugging(device_id):
     adb_path = get_adb_path()
     if not adb_path or not os.path.exists(adb_path):
@@ -109,6 +112,7 @@ def check_usb_debugging(device_id):
         return ("ERROR", "Unexpected output")
 
 
+# note: finding security patch within 3 to 6 months
 def check_security_patch(device_info):
     patch_date_raw = device_info.get("security_patch")
     if patch_date_raw is None:
@@ -128,6 +132,58 @@ def check_security_patch(device_info):
     return ("OK", {"days_old": days_old, "risk": risk})
 
 
-if __name__ == "__main__":
+# note: check for unknow source apps in the phone
+def check_unknown_sources(device_id, device_info):
+    adb_path = get_adb_path()
+    if not adb_path or not os.path.exists(adb_path):
+        return ("ERROR", "'platform-tools' folder not found!\n"
+                "Please download SDK PlatformTools and put in the repo folder")
+# --- get raw version and convert to integer
+    raw_version = device_info.get("android_version")
+    if raw_version is None:
+        return ("ERROR", "Android version unknown.")
+    android_version = int(raw_version)
+# --- checking under version 8 (different method to finding out)
+    if android_version < 8:
+        command_findsource = [adb_path, "-s", device_id, "shell",
+                              "settings", "get",
+                              "secure", "install_non_market_apps"]
+        try:
+            result_source = subprocess.run(command_findsource,
+                                           capture_output=True, text=True)
+        except FileNotFoundError:
+            return ("ERROR", "No data")
+        output_source = result_source.stdout.strip()
+        return ("OK", output_source == "1")
+    else:
+        command_findpackage = [adb_path, "-s", device_id, "shell",
+                               "dumpsys", "package", "|", "grep",
+                               "REQUESTED_INSTALL_PACKAGES"]
+        try:
+            result_package = subprocess.run(command_findpackage,
+                                            capture_output=True, text=True)
+        except FileNotFoundError:
+            return ("ERROR", "No data")
+        output_package = result_package.stdout
+        permission_package = "REQUESTED_INSTALL_PACKAGES" in output_package
+        return ("OK", permission_package)
+
+
+def main():
     status, data = check_adb_connection()
-    print(f"[{status}] {data}")
+    if status == "ERROR":
+        print(data)
+        sys.exit()
+    device_id = data
+    status, device_info = get_device_info(device_id)
+    if status == "ERROR":
+        print(device_info)
+        sys.exit()
+    print(device_info)
+    print(check_usb_debugging(device_id))
+    print(check_security_patch(device_info))
+    print(check_unknown_sources(device_id, device_info))
+
+
+if __name__ == "__main__":
+    main()
