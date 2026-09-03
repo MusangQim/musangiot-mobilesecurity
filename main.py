@@ -169,6 +169,23 @@ def check_unknown_sources(device_id, device_info):
         return ("OK", permission_package)
 
 
+def check_sideloaded_app(device_id):
+    adb_path = get_adb_path()
+    if not adb_path or not os.path.exists(adb_path):
+        return ("ERROR", "'platform-tools' folder not found!\n"
+                "Please download SDK PlatformTools and put in the repo folder")
+    command_installpackage = [adb_path, "-s", "pm", "list", "packages", "-3"]
+    try:
+        result_installpackage = subprocess.run(command_installpackage,
+                                               capture_output=True, text=True)
+    except FileNotFoundError:
+        return ("ERROR", "No data")
+    output_installpackage = result_installpackage.stdout.strip().splitlines()
+    package_list = [line.replace("Package:", "")
+                    for line in output_installpackage if line.strip()]
+    return ("OK", package_list)
+
+
 def main():
     status, data = check_adb_connection()
     if status == "ERROR":
