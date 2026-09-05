@@ -3,6 +3,7 @@ import sys
 import platform
 import subprocess
 from datetime import datetime
+known_bad_list = {"com.fake.virus", "com.malware.sample"}
 
 
 # note: using adb.exe by auto locating the file after put folder in the repo
@@ -183,6 +184,16 @@ def check_sideloaded_app(device_id):
     output_installpackage = result_installpackage.stdout.strip().splitlines()
     package_list = [line.replace("Package:", "")
                     for line in output_installpackage if line.strip()]
+    flagged_apps = []
+    for package_name in package_list:
+        command_dumpsys = [adb_path, "-s", device_id, "shell",
+                           "dumpsys", "package", package_name]
+        try:
+            result_dumpsys = subprocess.run(command_dumpsys,
+                                            capture_output=True, text=True)
+        except FileNotFoundError:
+            continue
+        output = result_dumpsys.stdout
     return ("OK", package_list)
 
 
