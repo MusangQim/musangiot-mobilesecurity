@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import platform
 import subprocess
 from datetime import datetime
@@ -71,6 +72,9 @@ def get_device_info(device_id):
         "ro.build.version.release": "android_version",
         "ro.build.version.security_patch": "security_patch",
         "ro.product.manufacturer": "manufacturer",
+        "ro.boot.flash.locked": "is_bootloader_locked",
+        "ro.boot.verifiedbootstate": "boot_state",
+        "ro.crypto.state": "storage_encryption",
     }
 # --- find getprop
     command = [adb_path, "-s", device_id, "shell", "getprop"]
@@ -175,7 +179,8 @@ def check_sideloaded_app(device_id):
     if not adb_path or not os.path.exists(adb_path):
         return ("ERROR", "'platform-tools' folder not found!\n"
                 "Please download SDK PlatformTools and put in the repo folder")
-    command_installpackage = [adb_path, "-s", "pm", "list", "packages", "-3"]
+    command_installpackage = [adb_path, "-s", device_id, "shell",
+                              "pm", "list", "packages", "-3"]
     try:
         result_installpackage = subprocess.run(command_installpackage,
                                                capture_output=True, text=True)
@@ -194,7 +199,22 @@ def check_sideloaded_app(device_id):
         except FileNotFoundError:
             continue
         output = result_dumpsys.stdout
-    return ("OK", package_list)
+        installer = None
+        for line in output.splitlines():
+            if "installerPackageName=" in line:
+                installer = line.split("=", 1)[1].strip()
+                break
+        is_sideloaded = (installer is None or installer == "null"
+                         or installer == "")
+        is_known_bad = package_name in known_bad_list
+        if is_sideloaded or is_known_bad:
+            flagged_apps.append({
+                "package": package_name,
+                "installer": installer,
+                "sideloaded": is_sideloaded,
+                "known_bad": is_known_bad
+            })
+    return ("OK", flagged_apps)
 
 
 def main():
@@ -207,10 +227,12 @@ def main():
     if status == "ERROR":
         print(device_info)
         sys.exit()
-    print(device_info)
+    print(json.dumps(device_info, indent=2))
     print(check_usb_debugging(device_id))
     print(check_security_patch(device_info))
     print(check_unknown_sources(device_id, device_info))
+    status, flagged = check_sideloaded_app(device_id)
+    print(json.dumps(flagged, indent=2))
 
 
 if __name__ == "__main__":
