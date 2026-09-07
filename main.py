@@ -75,6 +75,7 @@ def get_device_info(device_id):
         "ro.boot.flash.locked": "is_bootloader_locked",
         "ro.boot.verifiedbootstate": "boot_state",
         "ro.crypto.state": "storage_encryption",
+        "ro.build.tags": "build_tags",
     }
 # --- find getprop
     command = [adb_path, "-s", device_id, "shell", "getprop"]
@@ -217,6 +218,37 @@ def check_sideloaded_app(device_id):
     return ("OK", flagged_apps)
 
 
+def check_root_status(device_id, device_info):
+    adb_path = get_adb_path()
+    if not adb_path or not os.path.exists(adb_path):
+        return ("ERROR", "'platform-tools' folder not found!\n"
+                "Please download SDK PlatformTools and put in the repo folder")
+    signals = []
+    build_tags = device_info.get("build_tags", "")
+    if "test-keys" in build_tags:
+        signals.append("build_tags")
+    command_checksu = [adb_path, "-s", device_id, "shell",
+                       "which", "su"]
+    try:
+        result_checksu = subprocess.run(command_checksu,
+                                        capture_output=True, text=True)
+    except FileNotFoundError:
+        return ("ERROR", "No data")
+    if result_checksu.stdout.strip():
+        signals.append("su_binary_found")
+    command_checkexecsu = [adb_path, "-s", device_id, "shell",
+                           "su", "-c", "id"]
+    try:
+        result_checkexecsu = subprocess.run(command_checkexecsu,
+                                            capture_output=True, text=True)
+    except FileNotFoundError:
+        return ("ERROR", "No data")
+    if result_checkexecsu.returncode == 0:
+        signals.append("su_executeable")
+    is_rooted = len(signals) > 0
+    return ("OK", {"rooted": is_rooted, "signals": signals})
+
+
 def main():
     status, data = check_adb_connection()
     if status == "ERROR":
@@ -233,6 +265,7 @@ def main():
     print(check_unknown_sources(device_id, device_info))
     status, flagged = check_sideloaded_app(device_id)
     print(json.dumps(flagged, indent=2))
+    print(check_root_status(device_id, device_info))
 
 
 if __name__ == "__main__":
