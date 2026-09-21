@@ -249,6 +249,24 @@ def check_root_status(device_id, device_info):
     return ("OK", {"rooted": is_rooted, "signals": signals})
 
 
+def calculate_score(usb_result, patch_result, unknown_src_result, sideload_result, root_result):
+    score = 100
+    deductions = []
+    # USB DEBUGGING
+    status, is_usb_on = usb_result
+    if status == "OK" and is_usb_on:
+        score -= 15
+        deductions.append("USB debugging enabled (-15)")
+    # SECURITY PATCH AGE
+    status, patch_data = patch_result
+    if status == "OK":
+        if patch_data["risk"] == "MEDIUM":
+            score -= 10
+            deductions.append("Security patch outdated - medium risk (-10)")
+        elif patch_data["risk"] == "HIGH":
+            score -= 25
+            deductions.append("Security patch outdated - high risk (-25)")
+            
 def main():
     status, data = check_adb_connection()
     if status == "ERROR":
