@@ -249,7 +249,8 @@ def check_root_status(device_id, device_info):
     return ("OK", {"rooted": is_rooted, "signals": signals})
 
 
-def calculate_score(usb_result, patch_result, unknown_src_result, sideload_result, root_result):
+def calculate_score(usb_result, patch_result, unknown_src_result,
+                    sideload_result, root_result):
     score = 100
     deductions = []
     # USB DEBUGGING
@@ -266,7 +267,34 @@ def calculate_score(usb_result, patch_result, unknown_src_result, sideload_resul
         elif patch_data["risk"] == "HIGH":
             score -= 25
             deductions.append("Security patch outdated - high risk (-25)")
-            
+    # UNKNOWN SOURCES
+    status, unknown_data = unknown_src_result
+    if status == "OK" and unknown_data:
+        score -= 15
+        deductions.append("Unknown sources or sideload "
+                          "permission enabled (-15)")
+    # SIDELOADED APPS FLAGGED
+    status, flagged_list = sideload_result
+    if status == "OK" and len(flagged_list) > 0:
+        known_bad_count = 0
+        for app in flagged_list:
+            if app["known_bad"]:
+                known_bad_count += 1
+        if known_bad_count > 0:
+            score -= 30
+            deductions.append("Known-bad app detected (-30)")
+        else:
+            score -= 10
+            deductions.append("Sideloaded apps present (-10)")
+    # ROOT STATUS
+    status, root_data = root_result
+    if status == "OK" and root_data["rooted"]:
+        score -= 20
+        deductions.append("Device rooted (-20)")
+    score = max(score, 0)
+    return ("OK", {"score": score, "deductions": deductions})
+
+
 def main():
     status, data = check_adb_connection()
     if status == "ERROR":
