@@ -295,6 +295,35 @@ def calculate_score(usb_result, patch_result, unknown_src_result,
     return ("OK", {"score": score, "deductions": deductions})
 
 
+def generate_report(device_info, score_result):
+    score = score_result["score"]
+    deductions = score_result["deductions"]
+
+    report_lines = []
+    report_lines.append("=" * 40)
+    report_lines.append("MOBILE SECURITY CHECK REPORT")
+    report_lines.append("=" * 40)
+    report_lines.append(f"Model: {device_info.get('model', 'N/A')}")
+    report_lines.append(f"Manufacturer: {device_info.get('manufacturer',
+                                                         'N/A')}")
+    report_lines.append(f"Android Version: {device_info.get('android_version',
+                                                            'N/A')}")
+    report_lines.append("-" * 40)
+    report_lines.append(f"SECURITY SCORE: {score}/100")
+    report_lines.append("-" * 40)
+    if not deductions:
+        report_lines.append("No issues found. Device looks good!")
+    else:
+        report_lines.append("Issues found:")
+        for item in deductions:
+            report_lines.append(f" - {item}")
+    report_lines.append("=" * 40)
+    full_report = "\n".join(report_lines)
+    with open("report.txt", "w") as f:
+        f.write(full_report)
+    return ("OK", full_report)
+
+
 def main():
     status, data = check_adb_connection()
     if status == "ERROR":
